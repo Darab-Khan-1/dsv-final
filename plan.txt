@@ -1,0 +1,2 @@
+cd "/home/darab/Downloads/archive (1) (1)/backend"
+python -m src.aggregation.create_aggregate_tables

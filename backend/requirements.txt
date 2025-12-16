@@ -1,0 +1,40 @@
+# FastAPI Backend Requirements
+#
+# ============================================================================
+# IMPORTANT: PySpark requires Java 8+ to be installed on the system
+# ============================================================================
+# Install Java BEFORE installing PySpark:
+#   Ubuntu/Debian: sudo apt-get install openjdk-11-jdk
+#   macOS:         brew install openjdk@11
+#   Windows:       Download from https://adoptium.net/
+#
+# Verify Java: java -version
+# ============================================================================
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.4.0
+pydantic-settings>=2.0.0
+
+# Spark (REQUIRED - Backend will not work without this)
+pyspark>=3.5.0
+pyarrow>=12.0.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# CORS
+python-multipart>=0.0.6
+
+# Logging
+python-json-logger>=2.0.7
+
+# Optional: Monitoring
+prometheus-client>=0.18.0
+
+# Optional: Caching (uncomment if you want to use Redis for caching)
+# redis>=5.0.0
+# Note: If you need Redis, install it separately: pip install redis
+

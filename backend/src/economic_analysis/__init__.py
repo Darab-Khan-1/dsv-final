@@ -1,0 +1,2 @@
+"""Economic analysis module"""
+
