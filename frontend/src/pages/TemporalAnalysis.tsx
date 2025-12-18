@@ -47,7 +47,6 @@ export default function TemporalAnalysis() {
     retry: 1,
   });
 
-  // Process real API data
   const hourlyChartData = hourlyData?.data?.map(d => ({
     hour: `${d.hour}:00`,
     trip_count: d.trip_count
@@ -68,7 +67,6 @@ export default function TemporalAnalysis() {
     avg_fare: d.avg_fare
   })) ?? [];
 
-  // Calculate insights from real data
   const busiestHour = hourlyData?.data?.length 
     ? hourlyData.data.reduce((max, d) => d.trip_count > max.trip_count ? d : max)
     : null;
@@ -83,7 +81,6 @@ export default function TemporalAnalysis() {
     ? dailyData.data.reduce((min, d) => d.trip_count < min.trip_count ? d : min)
     : null;
 
-  // Format hour for display (convert 24-hour to 12-hour with AM/PM)
   const formatHour = (hour: number): string => {
     if (hour === 0) return '12:00 AM';
     if (hour < 12) return `${hour}:00 AM`;
@@ -94,7 +91,6 @@ export default function TemporalAnalysis() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -105,7 +101,6 @@ export default function TemporalAnalysis() {
             </p>
           </div>
 
-          {/* Filters */}
           <div className="flex gap-3">
             <Select value={yearFilter} onValueChange={setYearFilter}>
               <SelectTrigger className="w-[120px]">
@@ -132,7 +127,6 @@ export default function TemporalAnalysis() {
           </div>
         </div>
 
-        {/* Charts Grid */}
         <div className="grid gap-6 lg:grid-cols-2">
           <ChartCard 
             title="Trips by Hour of Day" 
@@ -200,7 +194,6 @@ export default function TemporalAnalysis() {
           </ChartCard>
         </div>
 
-        {/* Insights */}
         <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="mb-4 text-lg font-semibold text-foreground">Key Insights</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

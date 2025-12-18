@@ -1,7 +1,3 @@
-"""
-Data Endpoints
-"""
-
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from app.services.data_service import DataService
@@ -12,7 +8,6 @@ service = DataService()
 
 @router.get("/summary")
 async def get_data_summary():
-    """Get dataset summary statistics"""
     try:
         result = await service.get_data_summary()
         return result
@@ -26,7 +21,6 @@ async def get_data_sample(
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None)
 ):
-    """Get sample data"""
     try:
         result = await service.get_data_sample(n, year, month)
         return result
@@ -36,7 +30,6 @@ async def get_data_sample(
 
 @router.get("/date-range")
 async def get_date_range():
-    """Get available date range in dataset"""
     try:
         result = await service.get_date_range()
         return result
@@ -51,7 +44,6 @@ async def get_distribution(
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None)
 ):
-    """Get distribution histogram data for a field"""
     try:
         result = await service.get_distribution(field, bins, year, month)
         return result
@@ -67,7 +59,6 @@ async def get_scatter_data(
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None)
 ):
-    """Get scatter plot data (sampled for performance)"""
     try:
         result = await service.get_scatter_data(x_field, y_field, sample_size, year, month)
         return result
@@ -91,7 +82,6 @@ async def get_paginated_data(
     order_by: Optional[str] = Query(None, description="Column to order by"),
     order_direction: str = Query("asc", regex="^(asc|desc)$", description="Order direction")
 ):
-    """Get paginated data using Spark SQL with multiple filters"""
     try:
         result = await service.get_paginated_data(
             page=page,

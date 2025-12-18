@@ -3,11 +3,9 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaf
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for default marker icons in React/TypeScript
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// Fix default icon paths
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: icon,
@@ -47,7 +45,6 @@ function MapBounds({ pickupHotspots, dropoffHotspots }: { pickupHotspots?: Hotsp
       const bounds = L.latLngBounds(allPoints);
       map.fitBounds(bounds, { padding: [50, 50] });
     } else {
-      // Default to NYC if no data
       map.setView([40.7128, -74.0060], 11);
     }
   }, [map, pickupHotspots, dropoffHotspots]);
@@ -68,14 +65,12 @@ export function TaxiMap({
     setIsMounted(true);
   }, []);
 
-  // Calculate max trip count for scaling marker sizes
   const maxTrips = Math.max(
     ...pickupHotspots.map(h => h.trip_count),
     ...dropoffHotspots.map(h => h.trip_count),
     1
   );
 
-  // Don't render map on server side
   if (!isMounted) {
     return (
       <div className="w-full rounded-lg overflow-hidden flex items-center justify-center bg-secondary/30" style={{ height }}>

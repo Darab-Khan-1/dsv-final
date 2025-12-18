@@ -1,7 +1,3 @@
-"""
-Dynamic API endpoints backed by aggregate Parquet tables.
-"""
-
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -30,9 +26,6 @@ async def get_hourly_temporal(
     day_of_week: Optional[List[int]] = Query(None),
     hour: Optional[int] = Query(None, ge=0, le=23),
 ):
-    """
-    Get hourly temporal patterns with dynamic filters.
-    """
     try:
         spark = _get_spark()
         df = spark.read.parquet(
@@ -67,9 +60,6 @@ async def get_zone_stats(
     ),
     min_trips: int = Query(10, ge=1),
 ):
-    """
-    Get zone-level statistics with filters.
-    """
     try:
         spark = _get_spark()
         df = spark.read.parquet(

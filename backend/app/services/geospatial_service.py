@@ -1,8 +1,3 @@
-"""
-Geospatial Analysis Service
-Business logic for geospatial analysis endpoints
-"""
-
 from typing import Dict, Any
 from app.core.spark_session import get_spark_session
 from app.core.config import settings
@@ -14,19 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 class GeospatialAnalysisService:
-    """Service for geospatial analysis"""
-    
     def __init__(self):
         self._spark = None
-        # Use absolute path from backend/src/config.py so API and pipeline share one source of truth
         self.data_path = str(PROCESSED_DATA_DIR / "cleaned_data.parquet")
-        # Pre-aggregated geospatial stats for fast API queries
         self.zone_stats_path = str(DATA_DIR / "aggregates" / "geospatial_zone_stats.parquet")
         self.route_pairs_path = str(DATA_DIR / "aggregates" / "route_pairs_top.parquet")
     
     @property
     def spark(self):
-        """Lazy Spark session property"""
         if self._spark is None:
             self._spark = get_spark_session()
         return self._spark
@@ -36,12 +26,10 @@ class GeospatialAnalysisService:
         top_n: int = 20,
         min_trips: int = 100
     ) -> Dict[str, Any]:
-        """Get top pickup hotspots from pre-aggregated table"""
         try:
             import os
             F = get_spark_functions()
             
-            # Use aggregate table if available (much faster)
             if os.path.exists(self.zone_stats_path):
                 df = self.spark.read.parquet(self.zone_stats_path)
                 
@@ -53,7 +41,6 @@ class GeospatialAnalysisService:
                     .limit(top_n) \
                     .collect()
             else:
-                # Fallback to full dataset scan
                 df = self.spark.read.parquet(self.data_path)
                 result = df \
                     .withColumn("pickup_lat_grid", F.round(F.col("pickup_latitude"), 2)) \
@@ -84,12 +71,10 @@ class GeospatialAnalysisService:
         top_n: int = 20,
         min_trips: int = 100
     ) -> Dict[str, Any]:
-        """Get top dropoff hotspots from pre-aggregated table"""
         try:
             import os
             F = get_spark_functions()
             
-            # Use aggregate table if available (much faster)
             if os.path.exists(self.zone_stats_path):
                 df = self.spark.read.parquet(self.zone_stats_path)
                 
@@ -101,7 +86,6 @@ class GeospatialAnalysisService:
                     .limit(top_n) \
                     .collect()
             else:
-                # Fallback to full dataset scan
                 df = self.spark.read.parquet(self.data_path)
                 result = df \
                     .withColumn("dropoff_lat_grid", F.round(F.col("dropoff_latitude"), 2)) \
@@ -128,12 +112,10 @@ class GeospatialAnalysisService:
             raise
     
     async def get_route_pairs(self, top_n: int = 20) -> Dict[str, Any]:
-        """Get most common route pairs from pre-aggregated table"""
         try:
             import os
             F = get_spark_functions()
             
-            # Use aggregate table if available (much faster)
             if os.path.exists(self.route_pairs_path):
                 df = self.spark.read.parquet(self.route_pairs_path)
                 
@@ -153,7 +135,6 @@ class GeospatialAnalysisService:
                     ]
                 }
             else:
-                # Fallback to full dataset scan
                 df = self.spark.read.parquet(self.data_path)
                 result = df \
                     .withColumn("pickup_grid", F.concat(
@@ -187,21 +168,18 @@ class GeospatialAnalysisService:
             raise
     
     async def get_zone_comparison(self, zone_type: str) -> Dict[str, Any]:
-        """Compare trip characteristics by zone"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
             
-            # Airport coordinates
             airport_coords = {
                 "JFK": {"lat": 40.6413, "lon": -73.7781},
                 "LGA": {"lat": 40.7769, "lon": -73.8730},
             }
             
-            airport_radius = 0.05  # degrees
+            airport_radius = 0.05
             
             if zone_type == "airport":
-                # Analyze airport trips
                 results = {}
                 for airport, coords in airport_coords.items():
                     airport_trips = df.filter(
@@ -225,7 +203,6 @@ class GeospatialAnalysisService:
                         "avg_duration": stats.avg_duration
                     }
                 
-                # Compare with city average
                 city_avg = df.agg(
                     F.avg("fare_amount").alias("avg_fare"),
                     F.avg("trip_distance").alias("avg_distance")
@@ -249,7 +226,6 @@ class GeospatialAnalysisService:
         n_clusters: int = 20,
         cluster_type: str = "kmeans"
     ) -> Dict[str, Any]:
-        """Get geospatial clusters"""
         try:
             F = get_spark_functions()
             ml_modules = get_spark_ml()
@@ -258,23 +234,19 @@ class GeospatialAnalysisService:
             
             df = self.spark.read.parquet(self.data_path)
             
-            # Sample data for clustering (can use more with 9GB RAM)
-            df_sample = df.sample(0.15, seed=42)  # 15% sample (increased for better clustering)
-            df_sample = df_sample.repartition(200)  # Repartition for optimal memory distribution
+            df_sample = df.sample(0.15, seed=42)
+            df_sample = df_sample.repartition(200)
             
-            # Prepare features
             assembler = VectorAssembler(
                 inputCols=["pickup_latitude", "pickup_longitude"],
                 outputCol="features"
             )
             df_features = assembler.transform(df_sample)
             
-            # K-Means clustering
             kmeans = KMeans(k=n_clusters, seed=42, featuresCol="features", predictionCol="cluster_id")
             model = kmeans.fit(df_features)
             df_clustered = model.transform(df_features)
             
-            # Get cluster statistics
             cluster_stats = df_clustered.groupBy("cluster_id").agg(
                 F.count("*").alias("trip_count"),
                 F.avg("pickup_latitude").alias("avg_lat"),
@@ -301,18 +273,16 @@ class GeospatialAnalysisService:
             raise
     
     async def get_spatial_density(self, grid_size: float = 0.01) -> Dict[str, Any]:
-        """Get spatial density heatmap data"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
             
-            # Create grid based on grid_size
             result = (df
                 .withColumn("lat_grid", F.round(F.col("pickup_latitude") / grid_size) * grid_size)
                 .withColumn("lon_grid", F.round(F.col("pickup_longitude") / grid_size) * grid_size)
                 .groupBy("lat_grid", "lon_grid")
                 .agg(F.count("*").alias("density"))
-                .filter(F.col("density") > 10)  # Filter low density areas
+                .filter(F.col("density") > 10)
                 .orderBy(F.desc("density"))
                 .limit(100)
                 .collect())

@@ -1,17 +1,11 @@
-"""
-Spark Session Management
-Singleton pattern for Spark session
-"""
-
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Global Spark session handle (singleton)
 _spark_session = None
 
-
 def _import_spark():
-    """Lazy import of PySpark to avoid errors if not installed"""
     try:
         from pyspark.sql import SparkSession
         return SparkSession
@@ -22,12 +16,6 @@ def _import_spark():
 
 
 def get_spark_session():
-    """
-    Get or create Spark session (singleton)
-    
-    Returns:
-        SparkSession: Spark session instance
-    """
     global _spark_session
     
     if _spark_session is None:
@@ -51,7 +39,6 @@ def get_spark_session():
 
 
 def stop_spark_session():
-    """Stop Spark session"""
     global _spark_session
     
     if _spark_session is not None:

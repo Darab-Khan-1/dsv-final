@@ -1,7 +1,3 @@
-"""
-Health Check Endpoints
-"""
-
 from fastapi import APIRouter
 from datetime import datetime
 from app.core.spark_session import get_spark_session
@@ -11,7 +7,6 @@ router = APIRouter()
 
 @router.get("")
 async def health_check():
-    """Basic health check"""
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
@@ -21,7 +16,6 @@ async def health_check():
 
 @router.get("/spark")
 async def spark_health():
-    """Check Spark session health"""
     try:
         spark = get_spark_session()
         return {

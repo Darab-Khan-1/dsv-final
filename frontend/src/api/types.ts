@@ -1,4 +1,3 @@
-// Health Types
 export interface HealthResponse {
   status: 'healthy' | 'unhealthy';
   timestamp: string;
@@ -7,7 +6,6 @@ export interface HealthResponse {
   error?: string;
 }
 
-// Temporal Types
 export interface TripsByHour {
   hour: number;
   trip_count: number;
@@ -46,7 +44,6 @@ export interface FareTrend {
   avg_fare: number;
 }
 
-// Geospatial Types
 export interface Hotspot {
   latitude: number;
   longitude: number;
@@ -73,7 +70,6 @@ export interface SpatialDensity {
   density: number;
 }
 
-// Economic Types
 export interface CorrelationMatrix {
   columns: string[];
   correlation_matrix: number[][];
@@ -137,7 +133,6 @@ export interface MarketShare {
   avg_fare: number;
 }
 
-// ML Types
 export interface FarePredictionRequest {
   pickup_datetime: string;
   pickup_latitude: number;
@@ -160,7 +155,6 @@ export interface FeatureImportance {
   importance: number;
 }
 
-// Data Types
 export interface DataSummary {
   total_records: number;
   date_range: {
@@ -200,7 +194,6 @@ export interface DateRange {
   max_year: number;
 }
 
-// Filter Types
 export interface TemporalFilters {
   year?: number;
   month?: number;

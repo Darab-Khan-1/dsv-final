@@ -28,15 +28,17 @@ def get_spark_window():
 def get_spark_ml():
     """Lazy import of PySpark ML modules"""
     try:
+        from pyspark.ml import PipelineModel
         from pyspark.ml.stat import Correlation
         from pyspark.ml.feature import VectorAssembler, StandardScaler
         from pyspark.ml.clustering import KMeans
         from pyspark.ml.regression import (
             RandomForestRegressionModel,
             GBTRegressionModel,
-            LinearRegressionModel
+            LinearRegressionModel,
         )
         return {
+            "PipelineModel": PipelineModel,
             "Correlation": Correlation,
             "VectorAssembler": VectorAssembler,
             "StandardScaler": StandardScaler,

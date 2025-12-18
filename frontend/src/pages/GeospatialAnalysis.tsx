@@ -33,7 +33,6 @@ export default function GeospatialAnalysis() {
   const dropoffHotspots = dropoffData?.data ?? [];
   const routePairs = routePairsData?.data ?? [];
 
-  // Parse route pairs to extract coordinates
   const parseRoutePair = (route: RoutePair) => {
     const pickupCoords = route.pickup.split(',').map(Number);
     const dropoffCoords = route.dropoff.split(',').map(Number);
@@ -46,7 +45,6 @@ export default function GeospatialAnalysis() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Geospatial Analysis
@@ -56,7 +54,6 @@ export default function GeospatialAnalysis() {
           </p>
         </div>
 
-        {/* Map Controls */}
         <div className="flex items-center gap-4 rounded-lg border border-border bg-secondary/30 p-4">
           <Layers className="h-5 w-5 text-muted-foreground" />
           <div className="flex items-center gap-4">
@@ -81,7 +78,6 @@ export default function GeospatialAnalysis() {
           </div>
         </div>
 
-        {/* Interactive Leaflet Map */}
         <ChartCard title="NYC Trip Heatmap" subtitle="Geographic distribution of taxi trips">
           {pickupLoading || dropoffLoading ? (
             <LoadingOverlay message="Loading map data..." />
@@ -96,9 +92,7 @@ export default function GeospatialAnalysis() {
           )}
         </ChartCard>
 
-        {/* Hotspots Grid */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Pickup Hotspots */}
           <ChartCard title="Top Pickup Locations" subtitle="Busiest pickup areas">
             {pickupLoading ? (
               <LoadingOverlay message="Loading pickup hotspots..." />
@@ -137,7 +131,6 @@ export default function GeospatialAnalysis() {
             )}
           </ChartCard>
 
-          {/* Dropoff Hotspots */}
           <ChartCard title="Top Dropoff Locations" subtitle="Common destination areas">
             {dropoffLoading ? (
               <LoadingOverlay message="Loading dropoff hotspots..." />
@@ -177,7 +170,6 @@ export default function GeospatialAnalysis() {
           </ChartCard>
         </div>
 
-        {/* Route Pairs */}
         <ChartCard title="Popular Routes" subtitle="Most common pickup to dropoff pairs">
           {routesLoading ? (
             <LoadingOverlay message="Loading route pairs..." />

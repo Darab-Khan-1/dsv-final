@@ -123,7 +123,7 @@ def main(
             economic_results = run_economic_analysis(spark, df=df)
             logger.info("Economic analysis complete")
 
-        # Stage 5: ML (use dedicated 30% sample if dataset is huge)
+        # Stage 4: ML (use dedicated 30% sample if dataset is huge)
         if "ml" in stages_to_run:
             logger.info("\n" + "=" * 60)
             logger.info("STAGE 5: Machine Learning - Fare Prediction")

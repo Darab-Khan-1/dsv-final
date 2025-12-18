@@ -1,7 +1,3 @@
-"""
-Economic Analysis Endpoints
-"""
-
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from app.services.economic_service import EconomicAnalysisService
@@ -12,7 +8,6 @@ service = EconomicAnalysisService()
 
 @router.get("/correlations")
 async def get_correlations():
-    """Get correlation matrix for fare, distance, duration"""
     try:
         result = await service.get_correlations()
         return result
@@ -24,7 +19,6 @@ async def get_correlations():
 async def get_tip_analysis(
     group_by: str = Query("payment_type", description="Group by: payment_type, hour, distance_bucket, location")
 ):
-    """Get tip behavior analysis"""
     try:
         result = await service.get_tip_analysis(group_by)
         return result
@@ -37,7 +31,6 @@ async def get_revenue_analysis(
     group_by: str = Query("hour", description="Group by: hour, location, zone"),
     year: Optional[int] = Query(None)
 ):
-    """Get revenue analysis"""
     try:
         result = await service.get_revenue_analysis(group_by, year)
         return result
@@ -47,7 +40,6 @@ async def get_revenue_analysis(
 
 @router.get("/price-elasticity")
 async def get_price_elasticity():
-    """Get price elasticity analysis (fare per mile)"""
     try:
         result = await service.get_price_elasticity()
         return result
@@ -59,7 +51,6 @@ async def get_price_elasticity():
 async def get_surge_pricing(
     threshold: float = Query(3.0, description="Z-score threshold for surge detection")
 ):
-    """Detect surge pricing patterns"""
     try:
         result = await service.get_surge_pricing(threshold)
         return result
@@ -71,7 +62,6 @@ async def get_surge_pricing(
 async def get_customer_segments(
     n_segments: int = Query(5, description="Number of customer segments")
 ):
-    """Get customer segmentation analysis"""
     try:
         result = await service.get_customer_segments(n_segments)
         return result
@@ -81,7 +71,6 @@ async def get_customer_segments(
 
 @router.get("/market-share")
 async def get_market_share():
-    """Get vendor market share analysis"""
     try:
         result = await service.get_market_share()
         return result
@@ -91,7 +80,6 @@ async def get_market_share():
 
 @router.get("/insights")
 async def get_economic_insights():
-    """Get key economic insights for dashboard"""
     try:
         result = await service.get_economic_insights()
         return result

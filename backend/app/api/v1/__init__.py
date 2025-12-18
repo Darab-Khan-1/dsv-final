@@ -1,7 +1,3 @@
-"""
-API v1 Router
-"""
-
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     health,
@@ -14,8 +10,6 @@ from app.api.v1.endpoints import (
 )
 
 api_router = APIRouter()
-
-# Include all endpoint routers
 api_router.include_router(health.router, prefix="/health", tags=["health"])
 api_router.include_router(temporal.router, prefix="/temporal", tags=["temporal"])
 api_router.include_router(geospatial.router, prefix="/geospatial", tags=["geospatial"])

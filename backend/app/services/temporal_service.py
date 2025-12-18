@@ -1,8 +1,3 @@
-"""
-Temporal Analysis Service
-Business logic for temporal analysis endpoints
-"""
-
 from typing import Optional, Dict, Any
 import logging
 
@@ -14,18 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 class TemporalAnalysisService:
-    """Service for temporal analysis"""
-    
     def __init__(self):
         self._spark = None
-        # Raw cleaned trips (for heavier analyses)
         self.data_path = str(PROCESSED_DATA_DIR / "cleaned_data.parquet")
-        # Pre-aggregated temporal stats for lightweight API queries
         self.temporal_agg_path = str(DATA_DIR / "aggregates" / "temporal_hourly_stats.parquet")
     
     @property
     def spark(self):
-        """Lazy Spark session property"""
         if self._spark is None:
             self._spark = get_spark_session()
         return self._spark
@@ -36,12 +26,10 @@ class TemporalAnalysisService:
         month: Optional[int] = None,
         day_of_week: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get trip counts by hour"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.temporal_agg_path)
 
-            # Apply filters on pre-aggregated dimensions
             if year is not None:
                 df = df.filter(F.col("pickup_year") == int(year))
             if month is not None:
@@ -49,7 +37,6 @@ class TemporalAnalysisService:
             if day_of_week is not None:
                 df = df.filter(F.col("pickup_day_of_week") == int(day_of_week))
 
-            # Aggregate across all matching groups to get per-hour totals
             result = (
                 df.groupBy("pickup_hour")
                 .agg(F.sum("trip_count").alias("trip_count"))
@@ -69,7 +56,6 @@ class TemporalAnalysisService:
         year: Optional[int] = None,
         month: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get trip counts by day of week"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.temporal_agg_path)
@@ -97,7 +83,6 @@ class TemporalAnalysisService:
         self,
         year: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get trip counts by month"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
@@ -121,12 +106,10 @@ class TemporalAnalysisService:
             raise
     
     async def get_peak_hours(self, top_n: int = 10) -> Dict[str, Any]:
-        """Get peak pickup hours"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.temporal_agg_path)
 
-            # Sum trip_count across all days/months/years per hour, then take top N
             result = (
                 df.groupBy("pickup_hour")
                 .agg(F.sum("trip_count").alias("trip_count"))
@@ -147,7 +130,6 @@ class TemporalAnalysisService:
         year: Optional[int] = None,
         month: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get trip duration distribution statistics"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
@@ -185,7 +167,6 @@ class TemporalAnalysisService:
         group_by: str = "month",
         year: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get fare trends over time"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
@@ -209,7 +190,7 @@ class TemporalAnalysisService:
                     .orderBy("day_of_week") \
                     .collect()
                 return {"data": [{"day_of_week": row.day_of_week, "avg_fare": row.avg_fare} for row in result]}
-            else:  # month
+            else:
                 result = df \
                     .withColumn("month", F.month("tpep_pickup_datetime")) \
                     .withColumn("year", F.year("tpep_pickup_datetime")) \
@@ -227,31 +208,26 @@ class TemporalAnalysisService:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Get time series decomposition (trend, seasonal, residual)"""
         try:
             F = get_spark_functions()
             Window = get_spark_window()
             df = self.spark.read.parquet(self.data_path)
             
-            # Apply date filters if provided
             if start_date:
                 df = df.filter(F.col("tpep_pickup_datetime") >= start_date)
             if end_date:
                 df = df.filter(F.col("tpep_pickup_datetime") <= end_date)
             
-            # Aggregate by day for time series
             daily_trips = df \
                 .withColumn("date", F.date_format("tpep_pickup_datetime", "yyyy-MM-dd")) \
                 .groupBy("date") \
                 .agg(F.count("*").alias("trip_count")) \
                 .orderBy("date") \
-                .limit(365)  # Limit to last year for performance
+                .limit(365)
             
-            # Calculate rolling average (trend) - 7 day window
             window_spec = Window.orderBy("date").rowsBetween(-6, 0)
             daily_trips = daily_trips.withColumn("trend", F.avg("trip_count").over(window_spec))
             
-            # Calculate seasonal component (day of week average)
             df_with_dow = df \
                 .withColumn("day_of_week", F.dayofweek("tpep_pickup_datetime")) \
                 .withColumn("date", F.date_format("tpep_pickup_datetime", "yyyy-MM-dd"))
@@ -261,7 +237,6 @@ class TemporalAnalysisService:
                 .agg(F.avg("trip_count").alias("seasonal_component")) \
                 .collect()
             
-            # For simplicity, return aggregated data
             result = daily_trips.collect()
             
             return {
@@ -271,7 +246,7 @@ class TemporalAnalysisService:
                         "trip_count": row.trip_count,
                         "trend": row.trend if hasattr(row, 'trend') else None
                     }
-                    for row in result[:30]  # Return first 30 days
+                    for row in result[:30]
                 ],
                 "seasonal": [
                     {"day_of_week": row.day_of_week, "avg_trips": row.seasonal_component}

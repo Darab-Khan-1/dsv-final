@@ -1,8 +1,3 @@
-"""
-Economic Analysis Service
-Business logic for economic analysis endpoints
-"""
-
 from typing import Dict, Any, Optional
 from app.core.spark_session import get_spark_session
 from app.core.config import settings
@@ -14,13 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class EconomicAnalysisService:
-    """Service for economic analysis"""
-    
     def __init__(self):
         self._spark = None
-        # Use absolute path from backend/src/config.py so API and pipeline share one source of truth
         self.data_path = str(PROCESSED_DATA_DIR / "cleaned_data.parquet")
-        # Aggregate table paths for fast queries
         self.aggregates_dir = DATA_DIR / "aggregates"
         self.economic_fare_path = str(self.aggregates_dir / "economic_fare_analysis.parquet")
         self.tip_behavior_path = str(self.aggregates_dir / "tip_behavior_analysis.parquet")
@@ -30,13 +21,11 @@ class EconomicAnalysisService:
     
     @property
     def spark(self):
-        """Lazy Spark session property"""
         if self._spark is None:
             self._spark = get_spark_session()
         return self._spark
     
     async def get_correlations(self) -> Dict[str, Any]:
-        """Get correlation matrix"""
         try:
             ml_modules = get_spark_ml()
             VectorAssembler = ml_modules["VectorAssembler"]
@@ -44,12 +33,10 @@ class EconomicAnalysisService:
             
             df = self.spark.read.parquet(self.data_path)
             
-            # Prepare numeric columns
             numeric_cols = ["fare_amount", "trip_distance", "trip_duration_minutes"]
             assembler = VectorAssembler(inputCols=numeric_cols, outputCol="features")
             df_vector = assembler.transform(df).select("features")
             
-            # Calculate correlation
             correlation_matrix = Correlation.corr(df_vector, "features").head()[0]
             corr_array = correlation_matrix.toArray()
             
@@ -62,12 +49,10 @@ class EconomicAnalysisService:
             raise
     
     async def get_tip_analysis(self, group_by: str) -> Dict[str, Any]:
-        """Get tip behavior analysis - optimized with aggregate table"""
         try:
             import os
             F = get_spark_functions()
             
-            # Try to use aggregate table first
             if os.path.exists(self.tip_behavior_path) and group_by in ["payment_type", "hour"]:
                 df_agg = self.spark.read.parquet(self.tip_behavior_path)
                 
@@ -95,7 +80,6 @@ class EconomicAnalysisService:
                         ]
                     }
             
-            # Fallback to full scan
             df = self.spark.read.parquet(self.data_path)
             df_tip = df.withColumn(
                 "tip_percentage",
@@ -137,7 +121,6 @@ class EconomicAnalysisService:
         group_by: str,
         year: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get revenue analysis"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
@@ -165,16 +148,13 @@ class EconomicAnalysisService:
             raise
     
     async def get_price_elasticity(self) -> Dict[str, Any]:
-        """Get price elasticity analysis (fare per mile) - optimized with aggregate table"""
         try:
             import os
             F = get_spark_functions()
             
-            # Try to use aggregate table first
             if os.path.exists(self.economic_fare_path):
                 df_agg = self.spark.read.parquet(self.economic_fare_path)
                 
-                # Map distance buckets to match frontend format
                 df_mapped = df_agg.withColumn(
                     "distance_bucket",
                     F.when(F.col("distance_bucket") == "0-1mi", "Short (<2 mi)")
@@ -189,12 +169,11 @@ class EconomicAnalysisService:
                     .agg(
                         F.avg("fare_per_mile").alias("avg_fare_per_mile"),
                         F.avg("avg_fare").alias("avg_fare"),
-                        F.avg("avg_fare").alias("avg_distance"),  # Using avg_fare as proxy
+                        F.avg("avg_fare").alias("avg_distance"),
                         F.sum("trip_count").alias("trip_count")
                     ) \
                     .collect()
             else:
-                # Fallback to full scan (slower)
                 df = self.spark.read.parquet(self.data_path)
                 df_elasticity = df \
                     .filter(F.col("trip_distance") > 0) \
@@ -235,30 +214,24 @@ class EconomicAnalysisService:
             raise
     
     async def get_surge_pricing(self, threshold: float = 3.0) -> Dict[str, Any]:
-        """Detect surge pricing patterns - optimized with sampling"""
         try:
             F = get_spark_functions()
             Window = get_spark_window()
             
-            # Use sampling for surge detection (complex calculation)
             df = self.spark.read.parquet(self.data_path)
-            df_sample = df.sample(0.1, seed=42)  # 10% sample for performance
+            df_sample = df.sample(0.1, seed=42)
             
-            # Add grid columns if not present
             if "pickup_lat_grid" not in df_sample.columns:
                 df_sample = df_sample \
                     .withColumn("pickup_lat_grid", F.round(F.col("pickup_latitude"), 2)) \
                     .withColumn("pickup_lon_grid", F.round(F.col("pickup_longitude"), 2))
             
-            # Calculate z-scores by hour and zone
             window_spec = Window.partitionBy("pickup_hour", "pickup_lat_grid", "pickup_lon_grid")
             
             df_with_stats = df_sample \
                 .withColumn("zone_avg_fare", F.avg("fare_amount").over(window_spec)) \
                 .withColumn("zone_std_fare", F.stddev("fare_amount").over(window_spec))
             
-            # Calculate z-score, handling division by zero when stddev is 0
-            # If stddev is 0 or null, set z_score to 0 (no variation = no surge)
             df_surge = df_with_stats \
                 .withColumn("z_score", 
                     F.when(
@@ -270,7 +243,6 @@ class EconomicAnalysisService:
                 ) \
                 .filter(F.abs(F.col("z_score")) > threshold)
             
-            # Aggregate surge events
             surge_summary = df_surge \
                 .withColumn("hour", F.hour("tpep_pickup_datetime")) \
                 .groupBy("hour") \
@@ -285,7 +257,7 @@ class EconomicAnalysisService:
             
             total_surge = df_surge.count()
             total_trips_sample = df_sample.count()
-            total_surge_scaled = total_surge * 10  # Scale up since we sampled 10%
+            total_surge_scaled = total_surge * 10
             
             return {
                 "total_surge_events": int(total_surge_scaled),
@@ -306,13 +278,11 @@ class EconomicAnalysisService:
             raise
     
     async def get_economic_insights(self) -> Dict[str, Any]:
-        """Get key economic insights for dashboard - optimized with aggregate tables"""
         try:
             import os
             F = get_spark_functions()
             from src.config import AIRPORT_COORDINATES
             
-            # 1. Highest Tip Hour - use tip_behavior_analysis aggregate table
             if os.path.exists(self.tip_behavior_path):
                 df_tip = self.spark.read.parquet(self.tip_behavior_path)
                 tip_by_hour = df_tip \
@@ -324,10 +294,8 @@ class EconomicAnalysisService:
                 highest_tip_hour = tip_by_hour[0].pickup_hour if tip_by_hour else None
                 highest_tip_percent = float(tip_by_hour[0].avg_tip_percent) if tip_by_hour else 0.0
             else:
-                # Fallback: use temporal_hourly_stats
                 if os.path.exists(self.temporal_hourly_path):
                     df_temporal = self.spark.read.parquet(self.temporal_hourly_path)
-                    # Calculate tip percentage from avg_tip and avg_fare
                     tip_by_hour = df_temporal \
                         .withColumn("tip_percentage", 
                             F.when(F.col("avg_fare") > 0, (F.col("avg_tip") / F.col("avg_fare")) * 100).otherwise(0)
@@ -343,7 +311,6 @@ class EconomicAnalysisService:
                     highest_tip_hour = None
                     highest_tip_percent = 0.0
             
-            # 2. Best Revenue Hour - use temporal_hourly_stats
             if os.path.exists(self.temporal_hourly_path):
                 df_temporal = self.spark.read.parquet(self.temporal_hourly_path)
                 revenue_by_hour = df_temporal \
@@ -356,7 +323,6 @@ class EconomicAnalysisService:
             else:
                 best_revenue_hour = None
             
-            # 3. Airport Premium - use airport_analysis aggregate table
             if os.path.exists(self.airport_analysis_path):
                 df_airport = self.spark.read.parquet(self.airport_analysis_path)
                 airport_avg = df_airport.agg(F.avg("avg_fare").alias("avg_fare")).collect()[0]
@@ -364,7 +330,6 @@ class EconomicAnalysisService:
             else:
                 airport_avg_fare = 0.0
             
-            # City average from summary stats
             if os.path.exists(self.summary_stats_path):
                 df_summary = self.spark.read.parquet(self.summary_stats_path)
                 city_avg_row = df_summary.collect()[0]
@@ -374,7 +339,6 @@ class EconomicAnalysisService:
             
             airport_premium = ((airport_avg_fare - city_avg_fare) / city_avg_fare * 100) if city_avg_fare > 0 else 0.0
             
-            # 4. Credit Card Tip vs Cash Tip - use tip_behavior_analysis
             if os.path.exists(self.tip_behavior_path):
                 df_tip = self.spark.read.parquet(self.tip_behavior_path)
                 credit_tips = df_tip.filter(F.col("payment_type") == 1) \
@@ -403,7 +367,6 @@ class EconomicAnalysisService:
             raise
     
     async def get_customer_segments(self, n_segments: int = 5) -> Dict[str, Any]:
-        """Get customer segmentation based on spending behavior"""
         try:
             F = get_spark_functions()
             ml_modules = get_spark_ml()
@@ -413,17 +376,14 @@ class EconomicAnalysisService:
             
             df = self.spark.read.parquet(self.data_path)
             
-            # Sample for performance
-            df_sample = df.sample(0.15, seed=42)  # 15% sample (increased for better analysis with more RAM)
+            df_sample = df.sample(0.15, seed=42)
             
-            # Prepare features for clustering
             assembler = VectorAssembler(
                 inputCols=["fare_amount", "trip_distance", "trip_duration_minutes"],
                 outputCol="features"
             )
             df_features = assembler.transform(df_sample)
             
-            # Scale features
             scaler = StandardScaler(
                 inputCol="features",
                 outputCol="scaled_features",
@@ -433,12 +393,10 @@ class EconomicAnalysisService:
             scaler_model = scaler.fit(df_features)
             df_scaled = scaler_model.transform(df_features)
             
-            # K-Means clustering
             kmeans = KMeans(k=n_segments, seed=42, featuresCol="scaled_features", predictionCol="segment")
             model = kmeans.fit(df_scaled)
             df_segmented = model.transform(df_scaled)
             
-            # Get segment characteristics
             segment_stats = df_segmented.groupBy("segment").agg(
                 F.count("*").alias("customer_count"),
                 F.avg("fare_amount").alias("avg_fare"),
@@ -464,16 +422,12 @@ class EconomicAnalysisService:
             raise
     
     async def get_market_share(self) -> Dict[str, Any]:
-        """Get vendor market share - optimized with sampling for large datasets"""
         try:
             import os
             F = get_spark_functions()
             
-            # Use aggregate table if available (economic_fare_analysis has payment_type, but we need VendorID)
-            # For now, use sampling to speed up
             df = self.spark.read.parquet(self.data_path)
             
-            # Sample 10% for market share calculation (vendors are limited, so sampling is safe)
             df_sample = df.sample(0.1, seed=42)
             
             result = df_sample \

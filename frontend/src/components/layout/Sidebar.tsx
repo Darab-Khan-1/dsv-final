@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/temporal', label: 'Temporal Analysis', icon: Clock },
-  { path: '/geospatial', label: 'Geospatial', icon: MapPin },
+  { path: '/geospatial', label: 'Geospatial Analysis', icon: MapPin },
   { path: '/economic', label: 'Economic Analysis', icon: DollarSign },
   { path: '/ml', label: 'ML Prediction', icon: Brain },
   { path: '/data', label: 'Data Explorer', icon: Database },
@@ -34,7 +34,6 @@ export function Sidebar() {
       )}
     >
       <div className="flex h-full flex-col">
-        {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-border px-4">
           {!collapsed && (
             <div className="flex items-center gap-2">
@@ -51,7 +50,6 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 space-y-1 p-3">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -75,7 +73,6 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Collapse Button */}
         <div className="border-t border-border p-3">
           <button
             onClick={() => setCollapsed(!collapsed)}

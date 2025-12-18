@@ -55,8 +55,6 @@ export default function Dashboard() {
   const avgFare = summary?.summary?.mean?.fare_amount ?? 0;
   const avgDistance = summary?.summary?.mean?.trip_distance ?? 0;
   const avgDuration = summary?.summary?.mean?.trip_duration_minutes ?? 0;
-
-  // Derived quick insights from real data
   const peakDay =
     dailyChartData.length > 0
       ? dailyChartData.reduce((max, d) => (d.trip_count > max.trip_count ? d : max))
@@ -73,7 +71,6 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             NYC Taxi Analytics
@@ -83,7 +80,6 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Trips"
@@ -112,7 +108,6 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Charts Row 1 */}
         <div className="grid gap-6 lg:grid-cols-3">
           <ChartCard 
             title="Trips by Hour" 
@@ -145,7 +140,6 @@ export default function Dashboard() {
           </ChartCard>
         </div>
 
-        {/* Charts Row 2 */}
         <div className="grid gap-6 lg:grid-cols-2">
           <ChartCard title="Trips by Day" subtitle="Weekly pattern">
             {dailyLoading ? (
@@ -214,7 +208,6 @@ export default function Dashboard() {
           </ChartCard>
         </div>
 
-        {/* API Connection Notice */}
         {summaryError && (
           <div className="rounded-lg border border-chart-3/30 bg-chart-3/10 p-4">
             <p className="text-sm text-chart-3">

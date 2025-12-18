@@ -6,14 +6,29 @@ import { HorizontalBarChart } from '@/components/charts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Brain, MapPin, Clock, Users, DollarSign, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getModelMetrics, predictFare, type ModelMetrics } from '@/api';
 
+const MODEL_OPTIONS = [
+  { value: 'random_forest', label: 'Random Forest' },
+  { value: 'gbt', label: 'Gradient Boosted Trees' },
+  { value: 'linear_regression', label: 'Linear Regression' },
+];
+
 export default function MLPrediction() {
+  const [selectedModel, setSelectedModel] = useState<string>('random_forest');
   const [isLoading, setIsLoading] = useState(false);
   const [prediction, setPrediction] = useState<number | null>(null);
   const [formData, setFormData] = useState({
+    pickupTime: '',
     pickupLat: '40.7589',
     pickupLng: '-73.9851',
     dropoffLat: '40.6413',
@@ -22,11 +37,10 @@ export default function MLPrediction() {
     distance: '',
   });
 
-  // Fetch model metrics
   const { data: modelMetrics, isLoading: metricsLoading } = useQuery<ModelMetrics>({
-    queryKey: ['model-metrics', 'random_forest'],
-    queryFn: () => getModelMetrics('random_forest'),
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    queryKey: ['model-metrics', selectedModel],
+    queryFn: () => getModelMetrics(selectedModel),
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,7 +54,6 @@ export default function MLPrediction() {
     setIsLoading(true);
     
     try {
-      // Calculate distance if not provided
       const distance = parseFloat(formData.distance) || 
         calculateDistance(
           parseFloat(formData.pickupLat),
@@ -49,11 +62,27 @@ export default function MLPrediction() {
           parseFloat(formData.dropoffLng)
         );
       
-      // Get current date/time for pickup
+      // Use user-provided pickup *time* (HH:MM) with today's date, otherwise "now"
       const now = new Date();
-      const pickupDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      let pickupDatetime: string;
+
+      if (formData.pickupTime) {
+        const [hStr, mStr] = formData.pickupTime.split(':');
+        const h = parseInt(hStr ?? '', 10);
+        const m = parseInt(mStr ?? '0', 10);
+
+        if (!Number.isNaN(h) && h >= 0 && h < 24 && !Number.isNaN(m) && m >= 0 && m < 60) {
+          pickupDatetime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+            now.getDate()
+          )} ${pad(h)}:${pad(m)}:00`;
+        } else {
+          pickupDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
+        }
+      } else {
+        pickupDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
+      }
       
-      // Call real ML prediction API
       const result = await predictFare({
         pickup_datetime: pickupDatetime,
         pickup_latitude: parseFloat(formData.pickupLat),
@@ -90,9 +119,8 @@ export default function MLPrediction() {
     }
   };
 
-  // Haversine formula for distance calculation
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 3959; // Earth's radius in miles
+    const R = 3959;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
     const a = 
@@ -106,7 +134,6 @@ export default function MLPrediction() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             ML Fare Prediction
@@ -117,10 +144,22 @@ export default function MLPrediction() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Prediction Form */}
           <ChartCard title="Fare Predictor" subtitle="Enter trip details">
             <div className="space-y-6">
-              {/* Pickup Location */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Clock className="h-4 w-4 text-chart-4" />
+                  Pickup Time
+                </div>
+                <Input
+                  id="pickupTime"
+                  name="pickupTime"
+                  type="time"
+                  value={formData.pickupTime}
+                  onChange={handleInputChange}
+                />
+              </div>
+
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <MapPin className="h-4 w-4 text-primary" />
@@ -154,7 +193,6 @@ export default function MLPrediction() {
                 </div>
               </div>
 
-              {/* Dropoff Location */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <MapPin className="h-4 w-4 text-chart-2" />
@@ -188,7 +226,6 @@ export default function MLPrediction() {
                 </div>
               </div>
 
-              {/* Other Details */}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -223,7 +260,6 @@ export default function MLPrediction() {
                 </div>
               </div>
 
-              {/* Predict Button */}
               <Button 
                 onClick={handlePredict} 
                 className="w-full gap-2"
@@ -242,7 +278,6 @@ export default function MLPrediction() {
                 )}
               </Button>
 
-              {/* Prediction Result */}
               {prediction !== null && (
                 <div className="rounded-lg border border-primary/30 bg-primary/10 p-6 text-center glow-primary">
                   <p className="text-sm text-muted-foreground mb-2">Predicted Fare</p>
@@ -250,14 +285,13 @@ export default function MLPrediction() {
                     ${prediction.toFixed(2)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Based on Random Forest model
+                    Based on {MODEL_OPTIONS.find(m => m.value === selectedModel)?.label || 'selected'} model
                   </p>
                 </div>
               )}
             </div>
           </ChartCard>
 
-          {/* Feature Importance */}
           <ChartCard title="Feature Importance" subtitle="What influences the prediction">
             {metricsLoading ? (
               <div className="flex items-center justify-center h-[400px]">
@@ -285,13 +319,21 @@ export default function MLPrediction() {
           </ChartCard>
         </div>
 
-        {/* Model Info */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-sm text-muted-foreground">Model Type</p>
-            <p className="text-xl font-bold text-foreground">
-              {metricsLoading ? 'Loading...' : (modelMetrics?.model_type || 'Random Forest')}
-            </p>
+            <p className="text-sm text-muted-foreground mb-2">Model Type</p>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {MODEL_OPTIONS.map((model) => (
+                  <SelectItem key={model.value} value={model.value}>
+                    {model.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-sm text-muted-foreground">R² Score</p>
@@ -302,7 +344,7 @@ export default function MLPrediction() {
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-sm text-muted-foreground">RMSE</p>
             <p className="text-xl font-bold text-chart-3">
-              {metricsLoading ? '...' : (modelMetrics?.rmse ? `$${modelMetrics.rmse.toFixed(2)}` : 'N/A')}
+              {metricsLoading ? '...' : (modelMetrics?.rmse ? modelMetrics.rmse.toFixed(2) : 'N/A')}
             </p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">

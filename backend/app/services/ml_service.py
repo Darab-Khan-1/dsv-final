@@ -1,57 +1,39 @@
-"""
-Machine Learning Service
-Business logic for ML endpoints
-"""
-
 from typing import Dict, Any, Optional
 import os
 import logging
+
 from app.core.spark_session import get_spark_session
 from app.core.config import settings
 from app.utils.spark_imports import get_spark_ml, get_spark_types
+from src.config import MODELS_DIR
 
 logger = logging.getLogger(__name__)
 
 
 class MLService:
-    """Service for machine learning operations"""
-    
     def __init__(self):
         self._spark = None
-        # Use absolute path - backend/app/services -> backend -> project_root
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.models_dir = os.path.join(base_dir, "..", "models")
+        # Use the same models directory as the Spark pipeline (`backend/models`)
+        self.models_dir = str(MODELS_DIR)
         self.models = {}
     
     @property
     def spark(self):
-        """Lazy Spark session property"""
         if self._spark is None:
             self._spark = get_spark_session()
         return self._spark
     
     def _load_model(self, model_name: str):
-        """Load a trained model"""
         model_path = os.path.join(self.models_dir, model_name)
         if not os.path.exists(model_path):
             return None
         
         try:
             ml_modules = get_spark_ml()
-            RandomForestRegressionModel = ml_modules["RandomForestRegressionModel"]
-            GBTRegressionModel = ml_modules["GBTRegressionModel"]
-            LinearRegressionModel = ml_modules["LinearRegressionModel"]
-            
-            # Try different model types
-            if "random_forest" in model_name.lower():
-                return RandomForestRegressionModel.load(model_path)
-            elif "gbt" in model_name.lower() or "gradient" in model_name.lower():
-                return GBTRegressionModel.load(model_path)
-            elif "linear" in model_name.lower():
-                return LinearRegressionModel.load(model_path)
-            else:
-                # Default to random forest
-                return RandomForestRegressionModel.load(model_path)
+            PipelineModel = ml_modules["PipelineModel"]
+
+            # All trained models are saved as Spark PipelineModels
+            return PipelineModel.load(model_path)
         except Exception as e:
             logger.error(f"Error loading model {model_name}: {e}")
             return None
@@ -66,7 +48,6 @@ class MLService:
         passenger_count: int,
         trip_distance: Optional[float] = None
     ) -> Dict[str, Any]:
-        """Predict taxi fare"""
         try:
             from pyspark.sql import Row
             from datetime import datetime
@@ -79,23 +60,24 @@ class MLService:
             StructField = types["StructField"]
             DoubleType = types["DoubleType"]
             IntegerType = types["IntegerType"]
-            
-            # Check if model exists
-            model_name = "fare_prediction_model"
-            model = self._load_model(model_name)
-            
+
+            # Prefer random forest model, fall back to others if needed
+            for candidate in ["fare_prediction_rf_model", "fare_prediction_gbt_model", "fare_prediction_lr_model"]:
+                model = self._load_model(candidate)
+                if model is not None:
+                    model_name = candidate
+                    break
+
             if model is None:
                 return {
                     "error": "Model not found. Please train the model first.",
-                    "message": "Run the ML training pipeline to create a model."
+                    "message": "Run the ML training pipeline (stage 5) to create a fare prediction model."
                 }
             
-            # Parse datetime
             pickup_dt = datetime.strptime(pickup_datetime, "%Y-%m-%d %H:%M:%S")
             
-            # Calculate Haversine distance if not provided
             if trip_distance is None:
-                R = 3959  # Earth radius in miles
+                R = 3959
                 lat1, lon1 = math.radians(pickup_latitude), math.radians(pickup_longitude)
                 lat2, lon2 = math.radians(dropoff_latitude), math.radians(dropoff_longitude)
                 dlat = lat2 - lat1
@@ -104,7 +86,7 @@ class MLService:
                 c = 2 * math.asin(math.sqrt(a))
                 trip_distance = R * c
             
-            # Create feature vector
+            # Feature order and names must match training in `src/ml_model/train.py`
             features = [
                 pickup_latitude,
                 pickup_longitude,
@@ -112,13 +94,12 @@ class MLService:
                 dropoff_longitude,
                 passenger_count,
                 trip_distance,
-                pickup_dt.hour,
-                pickup_dt.weekday() + 1,  # dayofweek
-                pickup_dt.month,
-                pickup_dt.year
+                pickup_dt.hour,             # pickup_hour
+                pickup_dt.weekday() + 1,    # pickup_day_of_week
+                pickup_dt.month,            # pickup_month
+                pickup_dt.year,             # pickup_year
             ]
-            
-            # Create DataFrame
+
             schema = StructType([
                 StructField("pickup_latitude", DoubleType()),
                 StructField("pickup_longitude", DoubleType()),
@@ -126,23 +107,17 @@ class MLService:
                 StructField("dropoff_longitude", DoubleType()),
                 StructField("passenger_count", IntegerType()),
                 StructField("trip_distance", DoubleType()),
-                StructField("hour", IntegerType()),
-                StructField("day_of_week", IntegerType()),
-                StructField("month", IntegerType()),
-                StructField("year", IntegerType()),
+                StructField("pickup_hour", IntegerType()),
+                StructField("pickup_day_of_week", IntegerType()),
+                StructField("pickup_month", IntegerType()),
+                StructField("pickup_year", IntegerType()),
             ])
             
             df = self.spark.createDataFrame([Row(*features)], schema)
-            
-            # Assemble features
-            assembler = VectorAssembler(
-                inputCols=schema.fieldNames(),
-                outputCol="features"
-            )
-            df_features = assembler.transform(df)
-            
-            # Make prediction
-            prediction = model.transform(df_features)
+
+            # The saved Spark PipelineModel already includes the VectorAssembler and scaler,
+            # so we just pass the raw feature columns; it will create the `features` column itself.
+            prediction = model.transform(df)
             predicted_fare = prediction.select("prediction").collect()[0][0]
             
             return {
@@ -165,7 +140,6 @@ class MLService:
             }
     
     async def get_model_info(self) -> Dict[str, Any]:
-        """Get model information"""
         try:
             models = []
             
@@ -189,7 +163,6 @@ class MLService:
             raise
     
     async def get_model_metrics(self, model_name: str = "random_forest") -> Dict[str, Any]:
-        """Get model metrics (R², RMSE, training samples)"""
         try:
             import json
             
@@ -204,7 +177,6 @@ class MLService:
             with open(metrics_path, 'r') as f:
                 metrics_data = json.load(f)
             
-            # Map model names to keys in metrics file
             model_key_map = {
                 "random_forest": "random_forest",
                 "rf": "random_forest",
@@ -217,7 +189,6 @@ class MLService:
             key = model_key_map.get(model_name.lower(), "random_forest")
             
             if key not in metrics_data:
-                # Try to find any available model
                 available_models = list(metrics_data.keys())
                 if available_models:
                     key = available_models[0]
@@ -230,7 +201,6 @@ class MLService:
             
             model_metrics = metrics_data[key]
             
-            # Format training samples for display
             training_samples = model_metrics.get("training_samples", 0)
             if training_samples >= 1_000_000:
                 training_samples_display = f"{(training_samples / 1_000_000):.1f}M"
@@ -239,13 +209,10 @@ class MLService:
             else:
                 training_samples_display = str(training_samples)
             
-            # Get feature importance if available
             feature_importance = model_metrics.get("feature_importance")
             if feature_importance and isinstance(feature_importance, dict):
-                # Already in dict format from JSON
                 pass
             elif feature_importance and isinstance(feature_importance, list):
-                # Convert from list of tuples to dict
                 feature_importance = {feature: importance for feature, importance in feature_importance}
             else:
                 feature_importance = None
@@ -267,7 +234,6 @@ class MLService:
             }
     
     async def get_feature_importance(self, model_name: str) -> Dict[str, Any]:
-        """Get feature importance"""
         try:
             model = self._load_model(model_name)
             
@@ -277,9 +243,11 @@ class MLService:
                     "message": "Please train the model first."
                 }
             
-            # Get feature importance if available
-            if hasattr(model, "featureImportances"):
-                importances = model.featureImportances.toArray().tolist()
+            # For PipelineModels, the final stage is the regressor with featureImportances
+            regressor = getattr(model, "stages", [model])[-1]
+
+            if hasattr(regressor, "featureImportances"):
+                importances = regressor.featureImportances.toArray().tolist()
                 feature_names = [
                     "pickup_latitude", "pickup_longitude",
                     "dropoff_latitude", "dropoff_longitude",

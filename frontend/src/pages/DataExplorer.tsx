@@ -49,7 +49,6 @@ export default function DataExplorer() {
   const [filtersApplied, setFiltersApplied] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
   
-  // Filter state (not applied until user clicks "Apply Filters")
   const [filters, setFilters] = useState<FilterState>({
     year: 'all',
     month: 'all',
@@ -62,7 +61,6 @@ export default function DataExplorer() {
     max_passengers: '',
   });
 
-  // Applied filters (used for query)
   const [appliedFilters, setAppliedFilters] = useState<FilterState>({
     year: 'all',
     month: 'all',
@@ -75,7 +73,6 @@ export default function DataExplorer() {
     max_passengers: '',
   });
 
-  // Convert filters to API params
   const getQueryParams = () => {
     const params: any = {
       page,
@@ -100,7 +97,7 @@ export default function DataExplorer() {
   const handleApplyFilters = () => {
     setAppliedFilters({ ...filters });
     setFiltersApplied(true);
-    setPage(1); // Reset to first page
+    setPage(1);
   };
 
   const handleClearFilters = () => {
@@ -145,13 +142,12 @@ export default function DataExplorer() {
     retry: 1,
   });
 
-  // Only fetch data if filters are applied
   const { data: paginatedData, isLoading, refetch } = useQuery({
     queryKey: ['paginatedData', ...Object.values(getQueryParams())],
     queryFn: () => getPaginatedData(getQueryParams()),
     retry: 1,
     keepPreviousData: true,
-    enabled: filtersApplied || hasActiveFilters(), // Only fetch when filters are applied
+    enabled: filtersApplied || hasActiveFilters(),
   });
 
   const records = paginatedData?.data || [];
@@ -208,7 +204,6 @@ export default function DataExplorer() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -241,7 +236,6 @@ export default function DataExplorer() {
           </div>
         </div>
 
-        {/* Filters Panel */}
         <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
           <ChartCard 
             title={
@@ -266,7 +260,6 @@ export default function DataExplorer() {
             <CollapsibleContent>
               <div className="space-y-4 pt-4">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {/* Year Filter */}
                   <div className="space-y-2">
                     <Label htmlFor="year">Year</Label>
                     <Select value={filters.year} onValueChange={(value) => setFilters({ ...filters, year: value })}>
@@ -281,7 +274,6 @@ export default function DataExplorer() {
                     </Select>
                   </div>
 
-                  {/* Month Filter */}
                   <div className="space-y-2">
                     <Label htmlFor="month">Month</Label>
                     <Select value={filters.month} onValueChange={(value) => setFilters({ ...filters, month: value })}>
@@ -299,7 +291,6 @@ export default function DataExplorer() {
                     </Select>
                   </div>
 
-                  {/* Payment Type Filter */}
                   <div className="space-y-2">
                     <Label htmlFor="payment_type">Payment Type</Label>
                     <Select value={filters.payment_type} onValueChange={(value) => setFilters({ ...filters, payment_type: value })}>
@@ -314,7 +305,6 @@ export default function DataExplorer() {
                     </Select>
                   </div>
 
-                  {/* Passenger Count Range */}
                   <div className="space-y-2">
                     <Label htmlFor="passengers">Passengers</Label>
                     <div className="flex gap-2">
@@ -343,7 +333,6 @@ export default function DataExplorer() {
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {/* Fare Range */}
                   <div className="space-y-2">
                     <Label htmlFor="fare">Fare Amount ($)</Label>
                     <div className="flex gap-2">
@@ -370,7 +359,6 @@ export default function DataExplorer() {
                     </div>
                   </div>
 
-                  {/* Distance Range */}
                   <div className="space-y-2">
                     <Label htmlFor="distance">Distance (miles)</Label>
                     <div className="flex gap-2">
@@ -398,7 +386,6 @@ export default function DataExplorer() {
                   </div>
                 </div>
 
-                {/* Filter Actions */}
                 <div className="flex items-center justify-between pt-2 border-t">
                   <Button
                     variant="ghost"
@@ -422,7 +409,6 @@ export default function DataExplorer() {
           </ChartCard>
         </Collapsible>
 
-        {/* Stats */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <StatCard
             title="Total Records"
@@ -444,7 +430,6 @@ export default function DataExplorer() {
           />
         </div>
 
-        {/* Data Table */}
         {!filtersApplied && !hasActiveFilters() ? (
           <ChartCard title="No Filters Applied" subtitle="Please apply filters to load data">
             <div className="text-center py-12 text-muted-foreground">
@@ -607,7 +592,6 @@ export default function DataExplorer() {
           </ChartCard>
         )}
 
-        {/* Column Descriptions */}
         <ChartCard title="Data Dictionary" subtitle="Column descriptions">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[

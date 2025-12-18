@@ -1,8 +1,3 @@
-"""
-Data Service
-Business logic for data endpoints
-"""
-
 from typing import Dict, Any, Optional
 import logging
 
@@ -14,42 +9,32 @@ logger = logging.getLogger(__name__)
 
 
 class DataService:
-    """Service for data operations"""
-    
     def __init__(self):
         self._spark = None
-        # Use absolute path from backend/src/config.py so API and pipeline share one source of truth
         self.data_path = str(PROCESSED_DATA_DIR / "cleaned_data.parquet")
-        # Pre-computed summary stats for fast API responses
         self.summary_stats_path = str(DATA_DIR / "aggregates" / "summary_stats.parquet")
     
     @property
     def spark(self):
-        """Lazy Spark session property"""
         if self._spark is None:
             self._spark = get_spark_session()
         return self._spark
     
     async def get_data_summary(self) -> Dict[str, Any]:
-        """Get dataset summary statistics from pre-computed aggregate table"""
         try:
             import os
-            # Try to use pre-computed summary stats first (much faster)
             if os.path.exists(self.summary_stats_path):
                 df_summary = self.spark.read.parquet(self.summary_stats_path)
                 row = df_summary.collect()[0]
                 
-                # Calculate economic metrics (with fallback calculation if columns don't exist)
                 try:
                     total_revenue = float(row.total_revenue) if row.total_revenue is not None else 0.0
                 except (AttributeError, KeyError):
-                    # Calculate from avg_fare * total_records if total_revenue column doesn't exist
                     total_revenue = float(row.avg_fare) * int(row.total_records) if row.avg_fare is not None else 0.0
                 
                 try:
                     avg_fare_per_mile = float(row.avg_fare_per_mile) if row.avg_fare_per_mile is not None else 0.0
                 except (AttributeError, KeyError):
-                    # Calculate from avg_fare / avg_distance if column doesn't exist
                     if row.avg_distance and row.avg_distance > 0 and row.avg_fare:
                         avg_fare_per_mile = float(row.avg_fare) / float(row.avg_distance)
                     else:
@@ -58,7 +43,6 @@ class DataService:
                 try:
                     avg_tip_rate = float(row.avg_tip_rate) if row.avg_tip_rate is not None else 0.0
                 except (AttributeError, KeyError):
-                    # Calculate from avg_tip / avg_fare if column doesn't exist
                     if row.avg_fare and row.avg_fare > 0 and row.avg_tip:
                         avg_tip_rate = (float(row.avg_tip) / float(row.avg_fare)) * 100
                     else:
@@ -112,7 +96,6 @@ class DataService:
                     }
                 }
             
-            # Fallback to full dataset scan if aggregate table doesn't exist
             if not os.path.exists(self.data_path):
                 raise FileNotFoundError(
                     f"Processed data file not found: {self.data_path}\n"
@@ -157,7 +140,6 @@ class DataService:
         year: Optional[int] = None,
         month: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get sample data"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
@@ -193,23 +175,17 @@ class DataService:
         order_by: Optional[str] = None,
         order_direction: str = "asc"
     ) -> Dict[str, Any]:
-        """Get paginated data using Spark SQL - optimized for performance"""
         try:
             import os
             F = get_spark_functions()
             
-            # Use partition pruning when filtering by year/month
-            # Spark will automatically use partition pruning if data is partitioned by year/month
             df = self.spark.read.parquet(self.data_path)
             
-            # Apply filters - Spark will use partition pruning automatically if data is partitioned
-            # Using partition columns directly enables efficient partition pruning
             if year:
                 df = df.filter(F.col("year") == year)
             if month:
                 df = df.filter(F.col("month") == month)
             
-            # Apply additional filters for better performance
             if payment_type is not None:
                 df = df.filter(F.col("payment_type") == payment_type)
             if min_fare is not None:
@@ -225,14 +201,9 @@ class DataService:
             if max_passengers is not None:
                 df = df.filter(F.col("passenger_count") <= max_passengers)
             
-            # Note: Partition pruning happens at read time, so even if window function is unpartitioned,
-            # it operates on a much smaller dataset when filters are applied
             
-            # Optimize total count calculation
-            # Use summary stats if no filters applied (much faster)
             total_count = None
             if not year and not month:
-                # Try to use cached count from summary stats
                 if os.path.exists(self.summary_stats_path):
                     try:
                         df_summary = self.spark.read.parquet(self.summary_stats_path)
@@ -240,33 +211,20 @@ class DataService:
                     except Exception as e:
                         logger.warning(f"Could not read total count from summary stats: {e}")
             
-            # If we don't have cached count, we'll estimate or skip count for better performance
-            # For filtered queries, count can be expensive - we'll calculate it lazily
-            # or estimate based on filters
             if total_count is None:
-                # For filtered queries, we can estimate or calculate
-                # But to avoid blocking, let's make count optional for now
-                # Calculate count only if dataset is reasonably sized
                 try:
-                    # Use approximate count if available, otherwise full count
-                    # For better UX, we can return estimated count or skip it
                     total_count = df.count()
                 except Exception as e:
                     logger.warning(f"Could not calculate total count: {e}")
-                    # Use a large estimate to allow pagination
-                    total_count = 1000000  # Fallback estimate
+                    total_count = 1000000
             
-            # Calculate offset
             offset = (page - 1) * page_size
             
-            # Apply ordering if specified
-            order_column = "tpep_pickup_datetime"  # Default
+            order_column = "tpep_pickup_datetime"
             if order_by and order_by in df.columns:
                 order_column = order_by
             
-            # Optimize: For first page, no need for window function
             if page == 1:
-                # Simple case: just order and limit
                 if order_direction.lower() == "desc":
                     df = df.orderBy(F.col(order_column).desc())
                 else:
@@ -274,50 +232,38 @@ class DataService:
                 
                 page_df = df.limit(page_size)
             else:
-                # For other pages, use a more efficient approach
-                # Instead of window function on entire dataset, use partitioned window when possible
                 from pyspark.sql.window import Window
                 
-                # Always use partitioning when year/month columns exist to avoid single partition shuffle
-                # This is critical for performance - partitioning prevents moving all data to one partition
                 partition_cols = []
                 if "year" in df.columns:
                     partition_cols.append("year")
                 if "month" in df.columns and (month is not None or year is not None):
-                    # Include month in partition if column exists and we have some filter context
                     partition_cols.append("month")
                 
-                # Build partitioned window - this is much faster than unpartitioned
                 if partition_cols:
                     if order_direction.lower() == "desc":
                         window = Window.partitionBy(*partition_cols).orderBy(F.col(order_column).desc())
                     else:
                         window = Window.partitionBy(*partition_cols).orderBy(F.col(order_column).asc())
                 else:
-                    # Fallback: unpartitioned window (slower - should rarely happen)
                     logger.warning("No partition columns available for window function - performance may be degraded")
                     if order_direction.lower() == "desc":
                         window = Window.orderBy(F.col(order_column).desc())
                     else:
                         window = Window.orderBy(F.col(order_column).asc())
                 
-                # Apply ordering first
                 if order_direction.lower() == "desc":
                     df = df.orderBy(F.col(order_column).desc())
                 else:
                     df = df.orderBy(F.col(order_column).asc())
                 
-                # Add row number with partitioned window
                 df = df.withColumn("_row_num", F.row_number().over(window))
                 
-                # Filter for the page
                 page_df = df.filter(
                     (F.col("_row_num") > offset) & 
                     (F.col("_row_num") <= offset + page_size)
                 ).drop("_row_num")
             
-            # Select only needed columns to reduce data transfer
-            # Get the page of data - limit the columns to essential ones for performance
             essential_columns = [
                 "VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime",
                 "passenger_count", "trip_distance", "fare_amount", "tip_amount",
@@ -326,13 +272,10 @@ class DataService:
             available_columns = [col for col in essential_columns if col in page_df.columns]
             page_df = page_df.select(available_columns)
             
-            # Convert to pandas (limit to reasonable size)
             page_data = page_df.limit(page_size).toPandas()
             
-            # Convert to records more efficiently
             records = page_data.to_dict(orient="records")
             
-            # Clean up numpy types
             for record in records:
                 for key, value in record.items():
                     if hasattr(value, 'item'):
@@ -342,7 +285,6 @@ class DataService:
                     elif value is None:
                         record[key] = None
             
-            # Calculate pagination metadata
             total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
             
             return {
@@ -361,12 +303,10 @@ class DataService:
             raise
     
     async def get_date_range(self) -> Dict[str, Any]:
-        """Get available date range - optimized to use summary stats"""
         try:
             import os
             F = get_spark_functions()
             
-            # Try to use summary stats first (much faster)
             if os.path.exists(self.summary_stats_path):
                 try:
                     df_summary = self.spark.read.parquet(self.summary_stats_path)
@@ -382,7 +322,6 @@ class DataService:
                 except Exception as e:
                     logger.warning(f"Could not read date range from summary stats: {e}")
             
-            # Fallback to full scan
             df = self.spark.read.parquet(self.data_path)
             
             date_range = df.agg(
@@ -409,7 +348,6 @@ class DataService:
         year: Optional[int] = None,
         month: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get distribution histogram data for a field"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
@@ -419,20 +357,17 @@ class DataService:
             if month:
                 df = df.filter(F.month("tpep_pickup_datetime") == month)
             
-            # Get min/max for binning
             stats_row = df.agg(
                 F.min(field).alias("min_val"),
                 F.max(field).alias("max_val")
             ).collect()[0]
             
-            # Convert Row to dict to avoid serialization issues
             stats = stats_row.asDict()
             min_val = float(stats["min_val"]) if stats["min_val"] is not None else 0.0
             max_val = float(stats["max_val"]) if stats["max_val"] is not None else 1.0
             
             bin_width = (max_val - min_val) / bins if max_val > min_val else 1.0
             
-            # Create bins and count
             df_with_bins = df.withColumn(
                 "bin",
                 F.floor((F.col(field) - min_val) / bin_width).cast("int")
@@ -440,7 +375,6 @@ class DataService:
             
             histogram_rows = df_with_bins.groupBy("bin").count().orderBy("bin").collect()
             
-            # Format as histogram data - convert Row objects to dicts
             histogram_data = []
             for row in histogram_rows:
                 row_dict = row.asDict()
@@ -474,7 +408,6 @@ class DataService:
         year: Optional[int] = None,
         month: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Get scatter plot data (sampled for performance)"""
         try:
             F = get_spark_functions()
             df = self.spark.read.parquet(self.data_path)
@@ -484,7 +417,6 @@ class DataService:
             if month:
                 df = df.filter(F.month("tpep_pickup_datetime") == month)
             
-            # Sample data for scatter plot
             total_count = df.count()
             if total_count == 0:
                 return {
@@ -498,7 +430,6 @@ class DataService:
             sample_df = df.select(x_field, y_field).sample(False, sample_fraction, seed=42).limit(sample_size)
             sample_pandas = sample_df.toPandas()
             
-            # Convert to dict and ensure all values are native Python types
             scatter_data = []
             for _, row in sample_pandas.iterrows():
                 scatter_data.append({

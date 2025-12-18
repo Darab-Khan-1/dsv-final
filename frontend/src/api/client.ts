@@ -8,7 +8,6 @@ export const apiClient = axios.create({
   },
 });
 
-// Request interceptor for logging
 apiClient.interceptors.request.use(
   (config) => {
     console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
@@ -19,7 +18,6 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -27,7 +25,6 @@ apiClient.interceptors.response.use(
       console.error('[API Connection Error]', 'Backend server is not reachable');
       error.isConnectionError = true;
     } else if (error.response) {
-      // Server responded with error status
       console.error('[API Error]', error.response.status, error.response.data);
       error.isApiError = true;
     } else {

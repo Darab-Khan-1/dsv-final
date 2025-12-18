@@ -1,35 +1,34 @@
-"""
-Machine Learning Endpoints
-"""
-
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
+from pydantic import BaseModel
+
 from app.services.ml_service import MLService
 
 router = APIRouter()
 service = MLService()
 
 
-@router.post("/predict-fare")
-async def predict_fare(
-    pickup_datetime: str,
-    pickup_latitude: float,
-    pickup_longitude: float,
-    dropoff_latitude: float,
-    dropoff_longitude: float,
-    passenger_count: int,
+class FarePredictionRequest(BaseModel):
+    pickup_datetime: str
+    pickup_latitude: float
+    pickup_longitude: float
+    dropoff_latitude: float
+    dropoff_longitude: float
+    passenger_count: int
     trip_distance: Optional[float] = None
-):
-    """Predict taxi fare using trained model"""
+
+
+@router.post("/predict-fare")
+async def predict_fare(payload: FarePredictionRequest):
     try:
         result = await service.predict_fare(
-            pickup_datetime,
-            pickup_latitude,
-            pickup_longitude,
-            dropoff_latitude,
-            dropoff_longitude,
-            passenger_count,
-            trip_distance
+            payload.pickup_datetime,
+            payload.pickup_latitude,
+            payload.pickup_longitude,
+            payload.dropoff_latitude,
+            payload.dropoff_longitude,
+            payload.passenger_count,
+            payload.trip_distance,
         )
         return result
     except Exception as e:
@@ -38,7 +37,6 @@ async def predict_fare(
 
 @router.get("/model-info")
 async def get_model_info():
-    """Get information about trained models"""
     try:
         result = await service.get_model_info()
         return result
@@ -50,7 +48,6 @@ async def get_model_info():
 async def get_feature_importance(
     model_name: str = Query("random_forest", description="Model name")
 ):
-    """Get feature importance from trained model"""
     try:
         result = await service.get_feature_importance(model_name)
         return result
@@ -62,7 +59,6 @@ async def get_feature_importance(
 async def get_model_metrics(
     model_name: str = Query("random_forest", description="Model name (random_forest, gbt, linear_regression)")
 ):
-    """Get model metrics (R², RMSE, training samples)"""
     try:
         result = await service.get_model_metrics(model_name)
         return result

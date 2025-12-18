@@ -48,8 +48,6 @@ export default function EconomicAnalysis() {
 
   const priceElasticity = priceData?.data || [];
   const marketShare = marketData?.data || [];
-
-  // Format economic metrics
   const formatRevenue = (revenue: number) => {
     if (revenue >= 1_000_000_000) {
       return `$${(revenue / 1_000_000_000).toFixed(1)}B`;
@@ -80,8 +78,6 @@ export default function EconomicAnalysis() {
   const tipRate = summaryData?.economic_metrics?.avg_tip_rate
     ? formatPercentage(summaryData.economic_metrics.avg_tip_rate)
     : 'N/A';
-
-  // Calculate monthly average surge events
   const calculateMonthlyAverage = () => {
     if (!surgeData?.total_surge_events || !dateRange) return 'N/A';
     
@@ -112,7 +108,6 @@ export default function EconomicAnalysis() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Economic Analysis
@@ -122,7 +117,6 @@ export default function EconomicAnalysis() {
           </p>
         </div>
 
-        {/* Stats */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Revenue"
@@ -151,9 +145,7 @@ export default function EconomicAnalysis() {
           />
         </div>
 
-        {/* Charts Row 1 */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Price Elasticity */}
           <ChartCard 
             title="Fare per Mile by Distance" 
             subtitle="Average fare per mile (not total fare) - shorter trips have higher per-mile rates due to base fares"
@@ -169,7 +161,6 @@ export default function EconomicAnalysis() {
                 <RechartsBarChart 
                   data={priceElasticity
                     .sort((a, b) => {
-                      // Sort by distance: Short < Medium < Long < Very Long
                       const order = { 'Short': 1, 'Medium': 2, 'Long': 3, 'Very Long': 4 };
                       const aOrder = order[a.distance_bucket.split(' ')[0] as keyof typeof order] || 0;
                       const bOrder = order[b.distance_bucket.split(' ')[0] as keyof typeof order] || 0;
@@ -225,7 +216,6 @@ export default function EconomicAnalysis() {
             )}
           </ChartCard>
 
-          {/* Market Share */}
           <ChartCard 
             title="Vendor Market Share" 
             subtitle="Trip distribution by vendor"
@@ -268,7 +258,6 @@ export default function EconomicAnalysis() {
           </ChartCard>
         </div>
 
-        {/* Insights */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-sm text-muted-foreground">Highest Tip Hour</p>
@@ -308,7 +297,6 @@ export default function EconomicAnalysis() {
               {insightsData?.best_revenue_hour !== null && insightsData?.best_revenue_hour !== undefined
                 ? (() => {
                     const hour = insightsData.best_revenue_hour!;
-                    // Determine context based on hour
                     if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
                       return 'Rush hour premium pricing';
                     } else if (hour >= 22 || hour <= 6) {
